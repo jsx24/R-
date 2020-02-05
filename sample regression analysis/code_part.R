@@ -1,7 +1,7 @@
 # data set is collected form 60 Standard Metropolitan Statistical Areasthe in United States. 
 # 17 variables and 60 observations\
 
-
+require(tidyverse）
 dataf<-read.csv(file="/Users/jiasheng/Desktop/finaldata.csv",head=T,sep=',')
 dataf4<-dataf[,c(2:16)]
 dataf1<-dataf[,c(2:14)]
