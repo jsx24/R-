@@ -1,6 +1,6 @@
 # data set is collected form 60 Standard Metropolitan Statistical Areasthe in United States. 
 # 17 variables and 60 observations\
-# we first do the simple data wrangling then do the regression analysis 
+
 
 dataf<-read.csv(file="/Users/jiasheng/Desktop/finaldata.csv",head=T,sep=',')
 dataf4<-dataf[,c(2:16)]
@@ -15,18 +15,33 @@ plot(blm)
 plot(clm)
 cof<-cor(dataf1)
 summary(alm)
+# correlation matrix plot 
 library(corrplot)
 corrplot(cof, type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45)
 alias(alm)
 plot(alm)
+# here is the code for cross validation, I didn't use this result in my report
+# optional for people to use 
 x_vars<-model.matrix(Mortality~.,data=dataf1)[,-5]
 y_var<-dataf1$Mortality
-
-
+lambda_seq<-10^seq(5,-5,by=-.1)
+set.seed(86)
+train = sample(1:nrow(x_vars), nrow(x_vars)/2)
+x_test = (-train)
+y_test = y_var[-train]
+cv_output <- cv.glmnet(x_vars[train,], y_var[train], 
+                       alpha = 1, lambda = lambda_seq)
+best_lam <- cv_output$lambda.min
+best_lam
+# here is the lasso code, I didn't use it in my final report 
+lasso_best <- glmnet(x_vars[train,], y_var[train], alpha = 1, lambda = best_lam)
+pred <- predict(lasso_best, s = best_lam, newx = x_vars[-train,])
+final <- cbind(y_var[-train], pred)
 head(final)
 cutoff <- 4/((nrow(dataf1)-length(alm$coefficients)-2))
 plot(fit, which=4, cook.levels=cutoff)
+# influence plot, for outlier test 
 influencePlot(alm, id.method="identify", main="Influence Plot", 
               sub="Circle size is proportial to Cook's Distance" )
 influencePlot(blm, id.method="identify", main="Influence Plot",
@@ -39,6 +54,7 @@ vif(clm)
 fd1<-dataf1[-c(12,29,49,50,59)]
 fd2<-dataf2[-c(7,29,38,50,59)]
 fd3<-dataf3[-c(12,29,38,40,59)]
+# test for log transformation, but not necessary
 falm<-lm(log(HCPot)~.,data=fd1)
 fblm<-lm(log(NOxPot)~.,data=fd2)
 fclm<-lm(S02Pot~.,data=fd3)
@@ -74,6 +90,7 @@ SD<-
            data = dataf41, 
            weights = 1/SD^2)
 bptest(fl2)
+# relative weight, and this fuction could generate the plot 
 relweights <- function(fit,...){
   R <- cor(fit$model)
   nvar <- ncol(R)
@@ -112,5 +129,7 @@ summary(fl2)
 fl3<-lm(Mortality~Rain+Education+X.NonWhite+S02Pot,data=dataf4)
 summary(fl3)
 anova(fl3)
+dwtest(fl3)
+bptest(fl3)
 dwtest(fl3)
 bptest(fl3)
