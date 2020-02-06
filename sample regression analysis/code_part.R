@@ -1,7 +1,8 @@
 # data set is collected form 60 Standard Metropolitan Statistical Areasthe in United States. 
 # 17 variables and 60 observations\
 
-
+require(tidyverse）
+require(car)
 dataf<-read.csv(file="/Users/jiasheng/Desktop/finaldata.csv",head=T,sep=',')
 dataf4<-dataf[,c(2:16)]
 dataf1<-dataf[,c(2:14)]
@@ -129,5 +130,7 @@ summary(fl2)
 fl3<-lm(Mortality~Rain+Education+X.NonWhite+S02Pot,data=dataf4)
 summary(fl3)
 anova(fl3)
+dwtest(fl3)
+bptest(fl3)
 dwtest(fl3)
 bptest(fl3)
