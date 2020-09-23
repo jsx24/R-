@@ -1,0 +1,128 @@
+##  Odds Ratio and Relative Risks for 2 x 2 Tables Odds Ratio
+##  (Case-Control Studies)
+
+## The odds ratio is a useful measure of association for a variety of
+## study designs. For a retrospective design called a case- control
+## study, the odds ratio can be used to estimate the relative risk
+## when the probability of positive response is small (Agresti
+## 2002). In a case-control study, two independent samples are
+## identified based on a binary (yes-no) response variable, and the
+## conditional distribution of a binary explanatory variable is
+## examined, within fixed levels of the response variable. See Stokes,
+## Davis, and Koch (2000) and Agresti (2007).
+
+oddsratio <- function(x,alpha=0.05,n, ...)
+UseMethod("oddsratio")
+
+oddsratio.default <- function(x, alpha=0.05,n,...)
+{
+  if(length(x) != 2 || length(n) != 2)
+    stop("Lengths of 'x' and/or 'n' not equal to two.")
+  if(any(x > n) || any(x<0) || any(n<0))
+    stop("Invalid data")
+  n = as.integer(n); x = as.integer(x)
+  y = data.frame(Event = x, Size = n)
+  row.names(y) <- c("Sample 1","Sample 2")
+  oddsratio(as.data.frame(y),alpha=alpha,...)
+}
+
+
+oddsratio.matrix <- function(x,alpha=0.05,...)
+{
+  oddsratio(as.data.frame(x),alpha=alpha,...)
+}
+
+oddsratio.data.frame <- function(x,alpha=0.05,...)
+{
+  stopifnot(class(x)=='data.frame')
+  stopifnot(alpha>0&&alpha<1)
+  n11 = x[1,1]; n1 = x[1,2]; n12 = n1-n11
+  n21 = x[2,1]; n2 = x[2,2]; n22 = n2-n21
+  if(n12<0||n22<0) stop("Invalid data!")
+  OR = n11*n22/(n12*n21)
+  ##  var(log(OR))
+  CI = NULL
+  LL = NULL; UL = NULL;
+  if(n11==0 || n12==0 || n21==0||n22 == 0){
+    warning("Asymptotic confidence limits for OR are not computed.")
+  }else{
+    v <- 1/n11+1/n21+1/n12+1/n22
+    ## v = sum(1/x); # Thanks mush go to Dr. Mike Schaffer for finding this bug. 
+    z = abs(qnorm(alpha/2))
+    LL = OR * exp(-z*sqrt(v)); UL = OR * exp(z*sqrt(v));
+    Asymptotic = c(LL = LL, UL = UL)
+    CI = rbind(CI, Asymptotic)
+  }
+  ## compute the exact CI
+  if(n11==0 || n22 == 0){
+    LL = 0
+    UL = .Fortran(.F_orexactu,
+      as.integer(c(n11,n12,n21,n22)),
+      as.double(alpha), ll=as.double(OR))$ll;
+  }else if(n12 == 0 || n21 == 0){
+    UL = Inf
+    LL = .Fortran(.F_orexactl,
+      as.integer(c(n11,n12,n21,n22)),
+      as.double(alpha), ll=as.double(1000))$ll;
+  }else{
+    LL = .Fortran(.F_orexactl,
+      as.integer(c(n11,n12,n21,n22)),
+      as.double(alpha), ll=as.double(OR))$ll;
+    UL = .Fortran(.F_orexactu,
+      as.integer(c(n11,n12,n21,n22)),
+      as.double(alpha), ll=as.double(OR))$ll;
+  }
+  
+  Exact = c(LL = LL, UL = UL)
+  CI = rbind(CI, Exact)
+
+  tmp = .orscoreci(n11,n1,n21,n2,1-alpha)
+  Score = c(LL = tmp[1], UL = tmp[2])
+  CI = rbind(CI, Score)
+  
+  ## we also compute the relative risks and the corresponding
+  ## confience limits.
+  RR = n11*n2/(n1*n21)
+  ## v = var(log(RR))
+  CI2 = NULL
+  p1 = n21/n2;
+  LL = ifelse(is.finite(LL),LL/((1-p1)+p1*LL),1/p1)
+  UL = ifelse(is.finite(UL), UL/((1-p1)+p1*UL),1/p1)
+  transform = c(LL = LL, UL = UL)
+  CI2 = rbind(CI2, transform)
+  if(n11==0 || n21==0){
+    warning("Asymptotic confidence limits for RR are not computed.")
+  }else{
+    v = n21/(n11*n1) + n22/(n21*n2); z = abs(qnorm(alpha/2))
+    LL = RR * exp(-z*sqrt(v)); UL = RR * exp(z*sqrt(v));
+    Asymptotic = c(LL = LL, UL = UL)
+    CI2 = rbind(CI2, Asymptotic)
+  }
+  tmp = .riskscoreci(n11,n1,n21,n2,1-alpha)
+  Score = c(LL = tmp[1], UL = tmp[2])
+  CI2 = rbind(CI2, Score)
+
+  ##  adverse <- data.frame(r = c(n11,n21), n = c(n1,n2), treat=c(1,0))
+  ##  LL = uniroot(.prof.uniroot, interval=c(-2,10),
+  ##    adverse=adverse,treat=treat)$root
+  ##  Profile = c(LL=exp(LL), UL=Score[2])
+  ##  CI2 = rbind(CI2, Profile)
+
+  structure(list(OR=OR, ORCI=CI, RR=RR,RRCI = CI2,
+                 alpha=alpha,data = x),
+            class = "odds")
+}
+
+print.odds <- function (x, digits = NULL, ...) 
+{
+  cat("\nData:\n")
+  print(x$data)
+  cat("\nOdds ratio:\t", format(x$OR, just='centre', digits=digits))
+  cat("\n", 100*(1-x$alpha),"% confidence intervals\n")
+  print(x$ORCI, digits = digits, ...)
+  cat("\nRelative risk:\t", format(x$RR, just='centre', digits=digits))
+  cat("\n", 100*(1-x$alpha),"% confidence intervals\n")
+  print(x$RRCI, digits = digits, ...)
+  cat("\n\n")
+  invisible(x)
+}
